@@ -1,13 +1,8 @@
+// components/cards/MiniCard.tsx
 import React from 'react';
-import {
-  ImageBackground,
-  View,
-  Text,
-  Image,
-  Pressable,
-  type ImageSourcePropType,
-} from 'react-native';
+import { ImageBackground, View, Text, Image, Pressable, type ImageSourcePropType } from 'react-native';
 import Ionicons from '@expo/vector-icons/Ionicons';
+import { colors } from '@/lib/theme';
 
 type Props = {
   bg: ImageSourcePropType;
@@ -53,30 +48,13 @@ export default function MiniCard({
     <Pressable onPress={onPress} accessibilityRole="button" style={{ width: '100%' }}>
       <ImageBackground
         source={bg}
-        style={{
-          minHeight: 104,
-          borderRadius: 16,
-          overflow: 'hidden',
-          justifyContent: 'center',
-        }}
+        style={{ minHeight: 104, borderRadius: 16, overflow: 'hidden', justifyContent: 'center' }}
         imageStyle={{ borderRadius: 16 }}
         resizeMode="cover"
       >
-        {/* readability overlay */}
-        <View
-          pointerEvents="none"
-          style={{ position: 'absolute', inset: 0, backgroundColor: 'rgba(0,0,0,0.35)' }}
-        />
+        <View pointerEvents="none" style={{ position: 'absolute', inset: 0, backgroundColor: 'rgba(0,0,0,0.35)' }} />
 
-        <View
-          style={{
-            flexDirection: 'row',
-            alignItems: 'center',
-            gap: 12,
-            paddingHorizontal: 12,
-            paddingVertical: 12,
-          }}
-        >
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12, paddingHorizontal: 12, paddingVertical: 12 }}>
           {/* Rank */}
           <View
             style={{
@@ -90,9 +68,7 @@ export default function MiniCard({
               borderColor: 'rgba(255,255,255,0.08)',
             }}
           >
-            <Text style={{ color: rankFg, fontWeight: '900', fontSize: 12 }}>
-              {rank ? `#${rank}` : '—'}
-            </Text>
+            <Text style={{ color: rankFg, fontWeight: '900', fontSize: 12 }}>{rank ? `#${rank}` : '—'}</Text>
           </View>
 
           {/* Avatar */}
@@ -116,10 +92,7 @@ export default function MiniCard({
           {/* Name + region + elite chip */}
           <View style={{ flex: 1 }}>
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-              <Text
-                numberOfLines={1}
-                style={{ color: '#fff', fontWeight: '800', fontSize: 16, flexShrink: 1 }}
-              >
+              <Text numberOfLines={1} style={{ color: '#fff', fontWeight: '800', fontSize: 16, flexShrink: 1 }}>
                 {username || 'Player'}
               </Text>
 
@@ -138,10 +111,7 @@ export default function MiniCard({
                     paddingRight: 8,
                   }}
                 >
-                  <Image
-                    source={{ uri: clubLogoUrl }}
-                    style={{ width: 16, height: 16, borderRadius: 8, backgroundColor: '#222' }}
-                  />
+                  <Image source={{ uri: clubLogoUrl }} style={{ width: 16, height: 16, borderRadius: 8, backgroundColor: '#222' }} />
                   <Text style={{ color: '#ffd79f', fontWeight: '800', fontSize: 11 }}>Elite</Text>
                 </View>
               ) : null}
@@ -155,9 +125,7 @@ export default function MiniCard({
           {/* Elo + caret */}
           <View style={{ alignItems: 'flex-end', gap: 6 }}>
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-              <Text style={{ color: '#ffe0b0', fontWeight: '900', fontSize: 18 }}>
-                {Math.round(rating ?? 1000)}
-              </Text>
+              <Text style={{ color: '#ffe0b0', fontWeight: '900', fontSize: 18 }}>{Math.round(rating ?? 1000)}</Text>
               <Text style={{ color: '#ffd79f', fontSize: 10, marginTop: 2 }}>ELO</Text>
             </View>
 
@@ -181,11 +149,7 @@ export default function MiniCard({
                   borderColor: 'rgba(255,255,255,0.08)',
                 }}
               >
-                <Ionicons
-                  name={expanded ? 'chevron-down' : 'chevron-forward'}
-                  size={18}
-                  color="#c4c4d2"
-                />
+                <Ionicons name={expanded ? 'chevron-down' : 'chevron-forward'} size={18} color="#c4c4d2" />
               </Pressable>
             ) : null}
           </View>

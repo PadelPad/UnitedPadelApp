@@ -1,112 +1,51 @@
-import React, { useEffect } from "react";
-import { View, StyleSheet, useWindowDimensions } from "react-native";
-import { LinearGradient } from "expo-linear-gradient";
-import Animated, {
-  useSharedValue,
-  withRepeat,
-  withTiming,
-  useAnimatedStyle,
-  Easing,
-} from "react-native-reanimated";
-import { theme } from "./Brand";
+// components/ui/BackgroundOrbs.tsx
+import React, { useEffect, useRef } from 'react';
+import { View, Animated, Easing, StyleSheet } from 'react-native';
+import { LinearGradient } from 'expo-linear-gradient';
 
 export default function BackgroundOrbs() {
-  const { width, height } = useWindowDimensions();
-  const base = Math.min(width, height);
-
-  // Responsive sizes
-  const sizeA = Math.round(base * 0.9);   // top-right
-  const sizeB = Math.round(base * 1.15);  // bottom-left
-  const sizeC = Math.round(base * 0.7);   // bottom-right accent
-
-  // Animation drivers
-  const s1 = useSharedValue(1);
-  const s2 = useSharedValue(1.04);
-  const s3 = useSharedValue(0.96);
+  const t1 = useRef(new Animated.Value(0)).current;
+  const t2 = useRef(new Animated.Value(0)).current;
+  const t3 = useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
-    s1.value = withRepeat(withTiming(1.06, { duration: 3600, easing: Easing.inOut(Easing.quad) }), -1, true);
-    s2.value = withRepeat(withTiming(0.94, { duration: 4200, easing: Easing.inOut(Easing.quad) }), -1, true);
-    s3.value = withRepeat(withTiming(1.03, { duration: 4800, easing: Easing.inOut(Easing.quad) }), -1, true);
-  }, []);
+    const loop = (v: Animated.Value, delay: number, dur: number) =>
+      Animated.loop(
+        Animated.sequence([
+          Animated.timing(v, { toValue: 1, duration: dur, delay, easing: Easing.inOut(Easing.quad), useNativeDriver: true }),
+          Animated.timing(v, { toValue: 0, duration: dur, easing: Easing.inOut(Easing.quad), useNativeDriver: true }),
+        ])
+      ).start();
+    loop(t1, 0, 6000);
+    loop(t2, 600, 7000);
+    loop(t3, 1200, 7500);
+  }, [t1, t2, t3]);
 
-  const orb1 = useAnimatedStyle(() => ({ transform: [{ scale: s1.value }], opacity: 0.35 }));
-  const orb2 = useAnimatedStyle(() => ({ transform: [{ scale: s2.value }], opacity: 0.28 }));
-  const orb3 = useAnimatedStyle(() => ({ transform: [{ scale: s3.value }], opacity: 0.22 }));
+  const styleFor = (v: Animated.Value, dx: number, dy: number, s0 = 0.94, s1 = 1.08) => ({
+    transform: [
+      { translateX: v.interpolate({ inputRange: [0, 1], outputRange: [0, dx] }) },
+      { translateY: v.interpolate({ inputRange: [0, 1], outputRange: [0, dy] }) },
+      { scale: v.interpolate({ inputRange: [0, 1], outputRange: [s0, s1] }) },
+    ],
+    opacity: v.interpolate({ inputRange: [0, 0.5, 1], outputRange: [0.22, 0.4, 0.22] }),
+  });
 
   return (
-    <View pointerEvents="none" style={StyleSheet.absoluteFill}>
-      {/* Base tint FIRST so it doesn’t cover the orbs */}
-      <View style={[StyleSheet.absoluteFill, { backgroundColor: theme.bg, opacity: 0.9 }]} />
-
-      {/* Top-right wash */}
-      <Animated.View
-        style={[
-          {
-            position: "absolute",
-            top: -sizeA * 0.35,
-            right: -sizeA * 0.35,
-            width: sizeA,
-            height: sizeA,
-            borderRadius: sizeA / 2,
-            overflow: "hidden",
-          },
-          orb1,
-        ]}
-      >
-        <LinearGradient
-          colors={["rgba(255,106,0,0.38)", "rgba(255,106,0,0.08)"]}
-          start={{ x: 0.1, y: 0.1 }}
-          end={{ x: 1, y: 1 }}
-          style={StyleSheet.absoluteFill}
-        />
+    <View pointerEvents="none" style={styles.root}>
+      <Animated.View style={[styles.orb, { top: -60, left: -30 }, styleFor(t1, 24, 18)]}>
+        <LinearGradient colors={['rgba(255,106,0,0.22)', 'rgba(255,106,0,0.05)']} style={StyleSheet.absoluteFill} />
       </Animated.View>
-
-      {/* Bottom-left wash */}
-      <Animated.View
-        style={[
-          {
-            position: "absolute",
-            bottom: -sizeB * 0.4,
-            left: -sizeB * 0.4,
-            width: sizeB,
-            height: sizeB,
-            borderRadius: sizeB / 2,
-            overflow: "hidden",
-          },
-          orb2,
-        ]}
-      >
-        <LinearGradient
-          colors={["rgba(255,127,26,0.32)", "rgba(255,127,26,0.07)"]}
-          start={{ x: 0, y: 0 }}
-          end={{ x: 1, y: 1 }}
-          style={StyleSheet.absoluteFill}
-        />
+      <Animated.View style={[styles.orb, { bottom: -80, right: -40 }, styleFor(t2, -26, -20, 0.92, 1.1)]}>
+        <LinearGradient colors={['rgba(255,170,0,0.2)', 'rgba(255,170,0,0.05)']} style={StyleSheet.absoluteFill} />
       </Animated.View>
-
-      {/* Small accent wash */}
-      <Animated.View
-        style={[
-          {
-            position: "absolute",
-            bottom: -sizeC * 0.35,
-            right: -sizeC * 0.35,
-            width: sizeC,
-            height: sizeC,
-            borderRadius: sizeC / 2,
-            overflow: "hidden",
-          },
-          orb3,
-        ]}
-      >
-        <LinearGradient
-          colors={["rgba(255,142,69,0.22)", "rgba(255,142,69,0.04)"]}
-          start={{ x: 0, y: 0 }}
-          end={{ x: 1, y: 1 }}
-          style={StyleSheet.absoluteFill}
-        />
+      <Animated.View style={[styles.small, { top: 120, right: -20 }, styleFor(t3, -18, 14, 0.96, 1.06)]}>
+        <LinearGradient colors={['rgba(255,220,160,0.18)', 'rgba(255,220,160,0.05)']} style={StyleSheet.absoluteFill} />
       </Animated.View>
     </View>
   );
 }
+const styles = StyleSheet.create({
+  root: { ...StyleSheet.absoluteFillObject, zIndex: -1 },
+  orb: { position: 'absolute', width: 260, height: 260, borderRadius: 130, overflow: 'hidden' },
+  small: { position: 'absolute', width: 160, height: 160, borderRadius: 80, overflow: 'hidden' },
+});

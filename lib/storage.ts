@@ -1,4 +1,5 @@
 // lib/storage.ts
+import { Image } from 'react-native';
 import { supabase } from '@/lib/supabase';
 
 /** Basic React Native file shape */
@@ -16,7 +17,8 @@ export type UploadResult = {
   publicUrl: string;
 };
 
-const randId = () => `${Math.random().toString(36).slice(2)}${Date.now().toString(36)}`;
+const randId = () =>
+  `${Math.random().toString(36).slice(2)}${Date.now().toString(36)}`;
 
 function joinPath(prefix: string | undefined, filename: string) {
   const p = (prefix ?? '').replace(/^\/+|\/+$/g, '');
@@ -87,7 +89,10 @@ export async function uploadFile(file: RNFile, opts?: UploadOpts): Promise<Uploa
 }
 
 /** Evidence (kept for BC) */
-export async function uploadEvidence(file: RNFile, opts?: { bucket?: string; pathPrefix?: string }): Promise<UploadResult> {
+export async function uploadEvidence(
+  file: RNFile,
+  opts?: { bucket?: string; pathPrefix?: string }
+): Promise<UploadResult> {
   const bucket = opts?.bucket ?? 'evidence';
   const prefix = opts?.pathPrefix;
   const ext = guessExt(file);
@@ -151,9 +156,7 @@ export async function uploadAvatarFromAsset(
   opts?: { bucket?: string; upsert?: boolean }
 ): Promise<UploadResult> {
   // Resolve the asset to a file URI Expo can fetch
-  // eslint-disable-next-line @typescript-eslint/no-var-requires
-  const { default: { resolveAssetSource } } = require('react-native/Libraries/Image/resolveAssetSource');
-  const src = resolveAssetSource(assetModule);
+  const src = Image.resolveAssetSource(assetModule as any);
   if (!src?.uri) throw new Error('uploadAvatarFromAsset: could not resolve asset URI');
   return uploadAvatarFromUri(src.uri, userId, { bucket: opts?.bucket, upsert: opts?.upsert });
 }
@@ -167,8 +170,14 @@ export function getPublicUrl(bucket: string, path: string): string {
   const { data } = supabase.storage.from(bucket).getPublicUrl(path);
   return data.publicUrl;
 }
-export async function getSignedUrl(bucket: string, path: string, expiresInSeconds = 3600): Promise<string> {
-  const { data, error } = await supabase.storage.from(bucket).createSignedUrl(path, expiresInSeconds);
+export async function getSignedUrl(
+  bucket: string,
+  path: string,
+  expiresInSeconds = 3600
+): Promise<string> {
+  const { data, error } = await supabase.storage
+    .from(bucket)
+    .createSignedUrl(path, expiresInSeconds);
   if (error) throw error;
   return data.signedUrl;
 }

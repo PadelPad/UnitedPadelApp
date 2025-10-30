@@ -1,111 +1,81 @@
-// components/ui/Buttons.tsx
-import React from "react";
-import { Pressable, Text, View, ActivityIndicator, StyleSheet, ViewStyle } from "react-native";
-import Ionicons from "@expo/vector-icons/Ionicons";
-import { theme, radius } from "./Brand";
+// components/ui/Button.tsx
+import React from 'react';
+import { Pressable, Text, ViewStyle, TextStyle } from 'react-native';
+import { colors, radii } from '@/lib/theme';
 
-type BtnBase = {
+type Variant = 'primary' | 'outline' | 'ghost';
+type Size = 'md' | 'lg';
+
+type Props = {
   title: string;
   onPress?: () => void;
   leftIcon?: React.ReactNode;
-  loading?: boolean;
-  disabled?: boolean;
+  rightIcon?: React.ReactNode;
+  variant?: Variant;
+  size?: Size;
   style?: ViewStyle;
-  testID?: string;
+  textStyle?: TextStyle;
+  disabled?: boolean;
+  accessibilityLabel?: string;
 };
 
-export function PrimaryButton(props: BtnBase) {
-  const { title, onPress, leftIcon, loading, disabled, style, testID } = props;
+export default function Button({
+  title,
+  onPress,
+  leftIcon,
+  rightIcon,
+  variant = 'primary',
+  size = 'md',
+  style,
+  textStyle,
+  disabled,
+  accessibilityLabel,
+}: Props) {
+  const padV = size === 'lg' ? 14 : 12;
+  const padH = size === 'lg' ? 18 : 14;
+
+  const bg =
+    variant === 'primary' ? colors.primary : variant === 'outline' ? 'transparent' : 'transparent';
+  const borderColor = variant === 'outline' ? colors.primary : colors.outline;
+  const textColor = variant === 'primary' ? colors.bg : colors.text;
+
   return (
     <Pressable
-      testID={testID}
-      onPress={disabled || loading ? undefined : onPress}
-      style={({ pressed }) => [
-        styles.base,
+      onPress={onPress}
+      disabled={disabled}
+      accessibilityRole="button"
+      accessibilityLabel={accessibilityLabel || title}
+      style={[
         {
-          backgroundColor: pressed ? theme.primary600 : theme.primary,
-          borderColor: theme.primary,
+          flexDirection: 'row',
+          alignItems: 'center',
+          justifyContent: 'center',
+          borderRadius: radii.lg,
+          paddingVertical: padV,
+          paddingHorizontal: padH,
+          backgroundColor: bg,
+          borderWidth: variant === 'outline' ? 1 : 0,
+          borderColor,
+          opacity: disabled ? 0.6 : 1,
         },
         style,
       ]}
     >
-      {loading ? (
-        <ActivityIndicator color="#0b0e13" />
-      ) : (
-        <View style={styles.row}>
-          {leftIcon ? <View style={styles.icon}>{leftIcon}</View> : null}
-          <Text style={[styles.primaryText]}>{title}</Text>
-        </View>
-      )}
+      {leftIcon ? <>{leftIcon}</> : null}
+      <Text
+        style={[
+          {
+            color: textColor,
+            fontWeight: '900',
+            fontSize: size === 'lg' ? 16 : 15,
+            marginHorizontal: 8,
+          },
+          textStyle,
+        ]}
+      >
+        {title}
+      </Text>
+      {rightIcon ? <>{rightIcon}</> : null}
     </Pressable>
   );
 }
-
-export function OutlineButton(props: BtnBase) {
-  const { title, onPress, leftIcon, loading, disabled, style, testID } = props;
-  return (
-    <Pressable
-      testID={testID}
-      onPress={disabled || loading ? undefined : onPress}
-      style={({ pressed }) => [
-        styles.base,
-        {
-          backgroundColor: "transparent",
-          borderColor: pressed ? theme.primary600 : theme.primary,
-        },
-        style,
-      ]}
-    >
-      {loading ? (
-        <ActivityIndicator color={theme.primary} />
-      ) : (
-        <View style={styles.row}>
-          {leftIcon ? <View style={styles.icon}>{leftIcon}</View> : null}
-          <Text style={[styles.outlineText]}>{title}</Text>
-        </View>
-      )}
-    </Pressable>
-  );
-}
-
-export function SocialButton(props: BtnBase & { variant: "apple" | "google" }) {
-  const { title, onPress, loading, variant, style } = props;
-  const isApple = variant === "apple";
-  return (
-    <Pressable
-      onPress={loading ? undefined : onPress}
-      style={({ pressed }) => [
-        styles.base,
-        {
-          backgroundColor: isApple ? (pressed ? "#0b0b0b" : "#000") : (pressed ? "#28303a" : "#1b222c"),
-          borderColor: "#000",
-        },
-        style,
-      ]}
-    >
-      {loading ? (
-        <ActivityIndicator color="#fff" />
-      ) : (
-        <View style={styles.row}>
-          <Ionicons name={isApple ? "logo-apple" : "logo-google"} size={18} color="#fff" />
-          <Text style={[styles.socialText]}>{title}</Text>
-        </View>
-      )}
-    </Pressable>
-  );
-}
-
-const styles = StyleSheet.create({
-  base: {
-    borderWidth: 1,
-    borderRadius: radius.xl,
-    paddingVertical: 16,
-    paddingHorizontal: 18,
-    alignItems: "center",
-  },
-  row: { flexDirection: "row", alignItems: "center", gap: 8 },
-  icon: { marginRight: 6 },
-  primaryText: { color: "#0b0e13", fontWeight: "800", fontSize: 16, letterSpacing: 0.3 },
-  outlineText: { color: theme.primary, fontWeight: "800", fontSize: 16, letterSpacing: 0.3 },
-  socialText: { color: "#fff", fontWeight: "800", fontSize: 16, letterSpacing: 0.3 },
-});

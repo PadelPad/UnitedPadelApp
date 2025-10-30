@@ -1,40 +1,20 @@
+// components/cards/PlayerCardBack.tsx
 import React from 'react';
-import {
-  ImageBackground,
-  View,
-  Text,
-  type ImageSourcePropType,
-} from 'react-native';
+import { View, Text, ImageBackground, StyleSheet } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
+import Ionicons from '@expo/vector-icons/Ionicons';
+import Svg, { Polyline, Circle } from 'react-native-svg';
+import { colors } from '@/lib/theme';
+import type { ImageSourcePropType } from 'react-native';
 
-export type PlayerCardBackProps = {
-  bg: ImageSourcePropType;
-
-  /** outer size + crop (match front to avoid layout jumps) */
-  width: number;
-  height: number;
-  imageScale?: number;       // default 1.28
-  imageTranslateY?: number;  // default 6
-
-  /** header */
-  region: string | null;
-  gender?: string | null;
-
-  /** core stats */
-  stats: {
-    matches: number;
-    wins: number;
-    winRatePct: number; // 0..100
-    streak: number;
-    xp: number;
-    eloDelta: number;   // last delta
-  };
-
-  /** premium gate */
-  locked?: boolean;
-
-  /** last 5 Elo deltas (oldest -> newest or newest -> oldest accepted; we render newest at the RIGHT) */
-  last5Deltas?: number[];
+type Stats = {
+  matches: number;
+  wins: number;
+  winRatePct: number; // 0..100
+  streak: number; // days or matches, your call
+  xp: number;
+  eloDelta: number;
+  last5: number[]; // newest first, 1=win,0=loss
 };
 
 export default function PlayerCardBack({
@@ -44,228 +24,172 @@ export default function PlayerCardBack({
   region,
   gender,
   stats,
+  imageScale = 1.34,
+  imageTranslateY = 10,
   locked = false,
-  imageScale = 1.28,
-  imageTranslateY = 6,
-  last5Deltas = [],
-}: PlayerCardBackProps) {
-  const Stat = ({ label, value }: { label: string; value: string | number }) => (
-    <View
-      style={{
-        width: '48%',
-        backgroundColor: 'rgba(0,0,0,0.28)',
-        borderRadius: 14,
-        paddingHorizontal: 12,
-        paddingVertical: 10,
-        borderWidth: 1,
-        borderColor: 'rgba(255,214,170,0.16)',
-        marginBottom: 12,
-      }}
-    >
-      <Text style={{ color: 'rgba(255,255,255,0.75)', fontSize: 13, marginBottom: 6 }}>
-        {label}
-      </Text>
-      <Text numberOfLines={1} style={{ color: '#f2d2a0', fontSize: 20, fontWeight: '800' }}>
-        {value}
-      </Text>
-    </View>
-  );
-
-  // Normalize sparkline data: show exactly 5 bars (pad with zeros), newest on the RIGHT.
-  const normalized: number[] = Array.from({ length: 5 }, (_, i) => {
-    // If input is oldest->newest, take from end; if newest->oldest, also ends up correct by slicing.
-    const src = last5Deltas.slice(-5); // last up to 5 items
-    // left-to-right should be oldest->newest:
-    return src[i - (5 - src.length)] ?? 0;
-  });
-
-  const maxAbs = Math.max(1, ...normalized.map((v) => Math.abs(v)));
-  const BAR_MAX = 44; // px
-  const BAR_MIN = 6;  // px (always visible)
-
-  const toBarH = (v: number) => {
-    const h = Math.round((Math.abs(v) / maxAbs) * BAR_MAX);
-    return Math.max(BAR_MIN, h);
-    // We draw baseline zero in the middle; sign is visualized by position (above/below line) + color
-  };
+}: {
+  bg: ImageSourcePropType;
+  width: number;
+  height: number;
+  region?: string | null;
+  gender?: string;
+  stats: Stats;
+  imageScale?: number;
+  imageTranslateY?: number;
+  locked?: boolean;
+}) {
+  const last5 = (stats?.last5 ?? []).slice(0, 5);
+  const winRate = Math.max(0, Math.min(100, Math.round(stats?.winRatePct ?? 0)));
 
   return (
     <ImageBackground
       source={bg}
-      style={{ width, height, borderRadius: 22, overflow: 'hidden' }}
-      imageStyle={{
-        borderRadius: 22,
-        transform: [{ scale: imageScale }, { translateY: imageTranslateY }],
-      }}
+      style={{ width, height, borderRadius: 24, overflow: 'hidden' }}
+      imageStyle={{ borderRadius: 24, transform: [{ scale: imageScale }, { translateY: imageTranslateY }] }}
       resizeMode="cover"
     >
-      <LinearGradient
-        colors={['rgba(0,0,0,0.28)', 'rgba(0,0,0,0.78)']}
-        style={{ flex: 1, padding: 14 }}
-      >
-        {/* Header */}
-        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-          <Text style={{ fontSize: 14, opacity: 0.9 }}>📍</Text>
-          <Text numberOfLines={1} style={{ color: '#fff', fontWeight: '800', fontSize: 15, flexShrink: 1 }}>
-            {region ?? '—'}
-          </Text>
-          {gender ? (
-            <Text style={{ color: 'rgba(255,255,255,0.75)' }}>· {gender}</Text>
-          ) : null}
-        </View>
+      <LinearGradient colors={['rgba(0,0,0,0.25)', 'rgba(0,0,0,0.9)']} style={StyleSheet.absoluteFill} />
 
-        {/* Top stats grid (mirrors your left/right look) */}
-        <View
-          style={{
-            flexDirection: 'row',
-            flexWrap: 'wrap',
-            justifyContent: 'space-between',
-            marginTop: 12,
-          }}
-        >
-          <Stat label="Matches" value={stats.matches} />
-          <Stat label="Wins" value={stats.wins} />
-          <Stat label="Win %" value={`${Math.round(stats.winRatePct)}%`} />
-          <Stat label="Streak" value={stats.streak} />
-          <Stat label="XP" value={stats.xp} />
-          <Stat label="Elo Δ" value={(stats.eloDelta > 0 ? '+' : '') + Math.round(stats.eloDelta)} />
+      {/* Meta */}
+      <View style={{ position: 'absolute', left: 14, right: 14, top: 14, flexDirection: 'row', gap: 8 }}>
+        <View style={styles.tag}>
+          <Ionicons name="map" size={12} color="#ffd79f" style={{ marginRight: 6 }} />
+          <Text style={styles.tagText}>{region || '—'}</Text>
         </View>
-
-        {/* Sparkline (Elo Δ last 5) */}
-        <View
-          style={{
-            marginTop: 8,
-            backgroundColor: 'rgba(0,0,0,0.22)',
-            borderRadius: 14,
-            paddingHorizontal: 12,
-            paddingVertical: 12,
-            borderWidth: 1,
-            borderColor: 'rgba(255,214,170,0.14)',
-          }}
-        >
-          <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 8, alignItems: 'center' }}>
-            <Text style={{ color: '#e8e0d6', fontWeight: '800' }}>Elo momentum (last 5)</Text>
-            <Text style={{ color: 'rgba(255,255,255,0.7)', fontSize: 12 }}>
-              Newest →
-            </Text>
+        {gender ? (
+          <View style={styles.tag}>
+            <Ionicons name="male-female" size={12} color="#ffd79f" style={{ marginRight: 6 }} />
+            <Text style={styles.tagText}>{gender}</Text>
           </View>
+        ) : null}
+      </View>
 
-          {/* Chart area */}
+      {/* Stats grid */}
+      <View style={{ position: 'absolute', left: 14, right: 14, bottom: 14 }}>
+        {locked ? (
           <View
             style={{
-              height: 90,
-              position: 'relative',
-              flexDirection: 'row',
-              justifyContent: 'space-between',
-              alignItems: 'center',
-              paddingHorizontal: 6,
-            }}
-          >
-            {/* Zero baseline */}
-            <View
-              style={{
-                position: 'absolute',
-                left: 0,
-                right: 0,
-                top: 45,
-                height: 1,
-                backgroundColor: 'rgba(235, 225, 205, 0.25)',
-              }}
-            />
-
-            {/* Bars (newest right) */}
-            {normalized.map((v, i) => {
-              const h = toBarH(v);
-              const isUp = v >= 0;
-              return (
-                <View
-                  key={`bar-${i}`}
-                  style={{
-                    width: 14,
-                    height: h,
-                    borderTopLeftRadius: 4,
-                    borderTopRightRadius: 4,
-                    borderBottomLeftRadius: 4,
-                    borderBottomRightRadius: 4,
-                    backgroundColor: isUp ? 'rgba(90, 200, 80, 0.95)' : 'rgba(255, 95, 87, 0.95)',
-                    borderWidth: 1,
-                    borderColor: isUp ? 'rgba(60, 160, 50, 0.6)' : 'rgba(200, 70, 60, 0.6)',
-                    transform: [
-                      // position bar above or below zero line by translating from center
-                      { translateY: isUp ? - (h / 2) : (h / 2) },
-                    ],
-                  }}
-                />
-              );
-            })}
-          </View>
-
-          {/* Small legend */}
-          <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginTop: 6 }}>
-            <Text style={{ color: 'rgba(255,255,255,0.7)', fontSize: 12 }}>Losses ↓</Text>
-            <Text style={{ color: 'rgba(255,255,255,0.7)', fontSize: 12 }}>Gains ↑</Text>
-          </View>
-        </View>
-
-        {/* Lock overlay */}
-        {locked && (
-          <View
-            pointerEvents="none"
-            style={{
-              position: 'absolute',
-              inset: 0,
-              backgroundColor: 'rgba(0,0,0,0.55)',
               alignItems: 'center',
               justifyContent: 'center',
-              paddingHorizontal: 18,
+              backgroundColor: 'rgba(0,0,0,0.45)',
+              borderWidth: 1,
+              borderColor: 'rgba(255,255,255,0.14)',
+              padding: 16,
+              borderRadius: 16,
             }}
           >
-            <View
-              style={{
-                backgroundColor: 'rgba(24,24,24,0.95)',
-                borderRadius: 16,
-                padding: 16,
-                width: '92%',
-                borderWidth: 1,
-                borderColor: 'rgba(255,214,170,0.2)',
-              }}
-            >
-              <Text style={{ textAlign: 'center', fontSize: 22, marginBottom: 6 }}>🔒</Text>
-              <Text
-                style={{
-                  color: '#FFD7A8',
-                  fontWeight: '800',
-                  fontSize: 16,
-                  textAlign: 'center',
-                }}
-              >
-                Plus & Elite unlock advanced insights
-              </Text>
-              <Text
-                style={{
-                  color: 'rgba(255,255,255,0.9)',
-                  marginTop: 6,
-                  textAlign: 'center',
-                  fontSize: 14,
-                }}
-              >
-                XP, Elo momentum, deeper stats, and the sparkline are premium.
-              </Text>
-            </View>
+            <Ionicons name="lock-closed" size={20} color="#ffd79f" />
+            <Text style={{ color: '#ffd79f', fontWeight: '900', marginTop: 8 }}>Upgrade for insights</Text>
+            <Text style={{ color: '#e6c8a4', marginTop: 6, textAlign: 'center' }}>
+              Get win rate, streaks & ELO trends with Plus/Elite.
+            </Text>
           </View>
-        )}
+        ) : (
+          <>
+            {/* Row 1 */}
+            <View style={{ flexDirection: 'row', gap: 10 }}>
+              <StatBox label="Matches" value={stats.matches} icon="tennisball" />
+              <StatBox label="Wins" value={stats.wins} icon="trophy" />
+            </View>
 
-        <Text
-          style={{
-            textAlign: 'center',
-            color: 'rgba(255,255,255,0.65)',
-            fontSize: 12,
-            marginTop: 10,
-          }}
-        >
-          Tap to flip
-        </Text>
-      </LinearGradient>
+            {/* Row 2 */}
+            <View style={{ flexDirection: 'row', gap: 10, marginTop: 10 }}>
+              <StatBox label="Win %" value={`${winRate}%`} icon="analytics" />
+              <StatBox label="Streak" value={`${stats.streak}d`} icon="flame" />
+            </View>
+
+            {/* XP + ELO delta */}
+            <View style={{ flexDirection: 'row', gap: 10, marginTop: 10 }}>
+              <StatBox label="XP" value={stats.xp} icon="sparkles" />
+              <StatBox
+                label="Δ ELO"
+                value={`${stats.eloDelta > 0 ? '+' : ''}${stats.eloDelta}`}
+                icon={stats.eloDelta >= 0 ? 'trending-up' : 'trending-down'}
+                valueColor={stats.eloDelta >= 0 ? colors.success : colors.danger}
+              />
+            </View>
+
+            {/* Sparkline last 5 */}
+            <View style={{ marginTop: 12, padding: 12, borderRadius: 14, backgroundColor: 'rgba(0,0,0,0.35)', borderWidth: 1, borderColor: 'rgba(255,255,255,0.12)' }}>
+              <Text style={{ color: '#fff', fontWeight: '800', marginBottom: 8 }}>Last 5</Text>
+              <Sparkline points={last5} />
+            </View>
+          </>
+        )}
+      </View>
     </ImageBackground>
   );
 }
+
+function StatBox({
+  label,
+  value,
+  icon,
+  valueColor = '#ffd79f',
+}: {
+  label: string;
+  value: string | number;
+  icon: any;
+  valueColor?: string;
+}) {
+  return (
+    <View
+      style={{
+        flex: 1,
+        backgroundColor: 'rgba(12,12,14,0.55)',
+        borderWidth: 1,
+        borderColor: 'rgba(255,255,255,0.12)',
+        padding: 12,
+        borderRadius: 14,
+      }}
+    >
+      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+        <Ionicons name={icon} size={14} color="#ffd79f" />
+        <Text style={{ color: '#e6c8a4', fontWeight: '700' }}>{label}</Text>
+      </View>
+      <Text style={{ color: valueColor, fontWeight: '900', fontSize: 18, marginTop: 4 }}>{value}</Text>
+    </View>
+  );
+}
+
+function Sparkline({ points }: { points: number[] }) {
+  const w = 180;
+  const h = 36;
+  if (!points.length) {
+    return <Text style={{ color: '#cfd3da' }}>No recent matches.</Text>;
+  }
+  // map 0..1 to y positions (invert for SVG top-left origin)
+  const step = w / Math.max(1, points.length - 1);
+  const poly = points
+    .map((p, i) => {
+      const y = p ? 6 : h - 6;
+      const x = i * step;
+      return `${x},${y}`;
+    })
+    .join(' ');
+
+  return (
+    <Svg width={w} height={h}>
+      <Polyline points={poly} stroke="#ffd79f" strokeWidth="2" fill="none" />
+      {points.map((p, i) => {
+        const y = p ? 6 : h - 6;
+        const x = i * step;
+        return <Circle key={i} cx={x} cy={y} r="3" fill="#ffe0b0" />;
+      })}
+    </Svg>
+  );
+}
+
+const styles = StyleSheet.create({
+  tag: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: 'rgba(12,12,14,0.55)',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.12)',
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 14,
+  },
+  tagText: { color: '#ffd79f', fontWeight: '800' },
+});

@@ -16,14 +16,16 @@ import {
   ImageBackground,
   type ImageSourcePropType,
 } from 'react-native';
-import Ionicons from '@expo/vector-icons/Ionicons';
 import { LinearGradient } from 'expo-linear-gradient';
+import Ionicons from '@expo/vector-icons/Ionicons';
 import { useInfiniteQuery, useQuery } from '@tanstack/react-query';
-import { supabase } from '@/lib/supabase';
 
-import PlayerCardBack from '@/components/cards/PlayerCardBack';
+import { colors } from '@/lib/theme';
+import { supabase } from '@/lib/supabase';
 import MiniCard from '@/components/cards/MiniCard';
+import PlayerCardBack from '@/components/cards/PlayerCardBack';
 import FlipCard from '@/components/cards/FlipCard';
+import { useDebouncedValue } from '@/lib/useDebouncedValue'; // <-- fixed
 
 /* ---------- Card backgrounds ---------- */
 const cardGold = require('@/assets/cards/goldcard.png') as ImageSourcePropType;
@@ -41,7 +43,7 @@ type LbRow = {
   rating: number | null;
   gender: string | null;
   region_id: string | null;
-  region_name: string | null; // from profiles.region (text)
+  region_name: string | null;
   club_id?: string | null;
 };
 
@@ -73,16 +75,18 @@ async function fetchRegions(): Promise<Region[]> {
   return data ?? [];
 }
 async function fetchClubs(): Promise<Club[]> {
-  const { data, error } = await supabase
-    .from('clubs')
-    .select('id,name,subscription_tier,logo_url')
-    .order('name');
+  const { data, error } = await supabase.from('clubs').select('id,name,subscription_tier,logo_url').order('name');
   if (error) throw error;
   return (data ?? []) as Club[];
 }
-
-/** Stats + last 5 for sparkline (1=win,0=loss newest first) */
-export async function fetchPlayerStats(userId: string) {
+async function fetchViewerTier(): Promise<ClubTier> {
+  const { data: auth } = await supabase.auth.getUser();
+  const me = auth?.user?.id;
+  if (!me) return 'basic';
+  const { data } = await supabase.from('profiles').select('subscription_tier').eq('id', me).single();
+  return (normalizeClubTier(data?.subscription_tier ?? null) ?? 'basic') as ClubTier;
+}
+async function fetchPlayerStats(userId: string) {
   const { data: mpRows, error: mpErr } = await supabase
     .from('match_players')
     .select('match_id, team_number, is_winner, created_at')
@@ -96,11 +100,10 @@ export async function fetchPlayerStats(userId: string) {
   }
 
   const matchIds = Array.from(new Set(mpRows.map((r: any) => r.match_id)));
-  const { data: matches, error: mErr } = await supabase
+  const { data: matches } = await supabase
     .from('matches')
     .select('id, status, winning_team, finalized, finalized_at, created_at')
     .in('id', matchIds);
-  if (mErr) throw mErr;
 
   const map = new Map<string, any>();
   (matches ?? []).forEach((m) => map.set(m.id, m));
@@ -132,7 +135,7 @@ export async function fetchPlayerStats(userId: string) {
     if (last5.length < 5) last5.push(won ? 1 : 0);
   }
 
-  // current win streak (from newest back)
+  // current win streak
   let streak = 0;
   for (const r of rows) {
     const m = map.get(r.match_id);
@@ -144,7 +147,6 @@ export async function fetchPlayerStats(userId: string) {
 
   const winRatePct = matchesCount ? Math.round((winsCount / matchesCount) * 100) : 0;
 
-  // last ELO delta if exists
   let eloDelta = 0;
   try {
     const { data: rc } = await supabase
@@ -154,30 +156,12 @@ export async function fetchPlayerStats(userId: string) {
       .order('created_at', { ascending: false })
       .limit(1);
     eloDelta = Number(rc?.[0]?.delta ?? 0);
-  } catch {
-    // table might not exist; leave 0
-  }
+  } catch {}
 
   const xp = matchesCount * 25 + winsCount * 15 + streak * 5;
-
   return { matches: matchesCount, wins: winsCount, winRatePct, streak, xp, eloDelta, last5 };
 }
 
-/** Current viewer tier (for gating insights) */
-async function fetchViewerTier(): Promise<ClubTier> {
-  const { data: auth } = await supabase.auth.getUser();
-  const me = auth?.user?.id;
-  if (!me) return 'basic';
-  const { data, error } = await supabase
-    .from('profiles')
-    .select('subscription_tier')
-    .eq('id', me)
-    .single();
-  if (error) return 'basic';
-  return (normalizeClubTier(data?.subscription_tier) ?? 'basic') as ClubTier;
-}
-
-/** Leaderboard page */
 async function fetchLeaderboardPage({
   mode,
   gender,
@@ -223,7 +207,7 @@ async function fetchLeaderboardPage({
   return { rows, from, to };
 }
 
-/* ---------- Podium Card (centered avatar, tasteful #1 bump) ---------- */
+/* ---------- Podium Card ---------- */
 function PodiumCard({
   rank,
   width,
@@ -248,18 +232,13 @@ function PodiumCard({
       <ImageBackground
         source={bg}
         style={{ flex: 1, borderRadius: 24, overflow: 'hidden' }}
-        imageStyle={{
-          borderRadius: 24,
-          transform: [{ scale: 1.34 }, { translateY: 10 }],
-        }}
+        imageStyle={{ borderRadius: 24, transform: [{ scale: 1.34 }, { translateY: 10 }] }}
         resizeMode="cover"
       >
-        {/* rank chip */}
         <View style={styles.rankPill}>
           <Text style={styles.rankPillText}>#{rank}</Text>
         </View>
 
-        {/* centered avatar */}
         <View style={styles.centerWrap}>
           {avatarUrl ? (
             <Image source={{ uri: avatarUrl }} style={styles.centerAvatar} />
@@ -270,10 +249,9 @@ function PodiumCard({
           )}
         </View>
 
-        {/* footer */}
         <LinearGradient colors={['rgba(0,0,0,0.0)', 'rgba(0,0,0,0.85)']} style={StyleSheet.absoluteFill} />
         <View style={styles.podiumFooter}>
-          <View style={styles.nameRegion}>
+          <View style={{ flex: 1, paddingRight: 10 }}>
             <Text numberOfLines={1} style={styles.heroName}>
               {username || 'Player'}
             </Text>
@@ -295,20 +273,16 @@ export default function LeaderboardScreen() {
   const [regionId, setRegionId] = useState<'all' | string>('all');
   const [clubId, setClubId] = useState<'all' | string>('all');
   const [search, setSearch] = useState('');
+  const searchQ = useDebouncedValue(search, 250);
 
-  const {
-    data: regions = [],
-    isLoading: loadingRegions,
-    refetch: refetchRegions,
-    isRefetching: refetchingRegions,
-  } = useQuery({ queryKey: ['regions'], queryFn: fetchRegions, staleTime: 6e5 });
+  const { data: regions = [], isLoading: loadingRegions, refetch: refetchRegions, isRefetching: refetchingRegions } =
+    useQuery({ queryKey: ['regions'], queryFn: fetchRegions, staleTime: 6e5 });
 
-  const {
-    data: clubs = [],
-    isLoading: loadingClubs,
-    refetch: refetchClubs,
-    isRefetching: refetchingClubs,
-  } = useQuery({ queryKey: ['clubs-all'], queryFn: fetchClubs, staleTime: 6e5 });
+  const { data: clubs = [], isLoading: loadingClubs, refetch: refetchClubs, isRefetching: refetchingClubs } = useQuery({
+    queryKey: ['clubs-all'],
+    queryFn: fetchClubs,
+    staleTime: 6e5,
+  });
 
   const clubsMap = useMemo(() => {
     const m = new Map<string, Club>();
@@ -333,17 +307,16 @@ export default function LeaderboardScreen() {
     hasNextPage,
     error,
   } = useInfiniteQuery({
-    queryKey: ['leaderboard', mode, gender, regionId, clubId, search],
+    queryKey: ['leaderboard', mode, gender, regionId, clubId, searchQ],
     initialPageParam: 0,
     queryFn: async ({ pageParam }) => {
       const from = typeof pageParam === 'number' ? pageParam : 0;
       const to = from + PAGE_SIZE - 1;
-      return fetchLeaderboardPage({ mode, gender, regionId, clubId, from, to, q: search });
+      return fetchLeaderboardPage({ mode, gender, regionId, clubId, from, to, q: searchQ });
     },
     getNextPageParam: (last) => (last.rows.length < PAGE_SIZE ? undefined : last.to + 1),
   });
 
-  // Flatten pages
   const players: LbRow[] = useMemo(() => {
     const seen = new Set<string>();
     const out: LbRow[] = [];
@@ -362,7 +335,6 @@ export default function LeaderboardScreen() {
   const podium = players.slice(0, 3);
   const rest = players.slice(3);
 
-  // details modal state
   const [openId, setOpenId] = useState<string | null>(null);
   const [flipped, setFlipped] = useState(false);
   const openPlayer = players.find((p) => p.id === openId) || null;
@@ -390,15 +362,12 @@ export default function LeaderboardScreen() {
     refetchViewerTier();
   };
 
-  /* ---------- Header with Top 3 ---------- */
   const renderHeader = useCallback(() => {
-    // Three columns, center slightly larger (aesthetic 1.12x)
     const baseW = W - 16 * 2;
     const gap = 16;
     const third = Math.round((baseW - gap * 2) / 3);
     const midW = Math.round(third * 1.12);
     const sideW = Math.round((baseW - midW - gap) / 2);
-
     const midH = Math.round(midW * 1.62);
     const sideH = Math.round(sideW * 1.62);
 
@@ -406,7 +375,6 @@ export default function LeaderboardScreen() {
       <View style={styles.headerWrap}>
         <Text style={styles.h1}>Leaderboard</Text>
 
-        {/* Search */}
         <View style={styles.searchWrap}>
           <Ionicons name="search" size={18} color="#9aa0a6" />
           <TextInput
@@ -424,7 +392,6 @@ export default function LeaderboardScreen() {
           ) : null}
         </View>
 
-        {/* Mode */}
         <View style={[styles.filtersRow, { marginTop: 10 }]}>
           {([
             { key: 'overall', label: 'Overall', icon: 'trophy' },
@@ -435,12 +402,12 @@ export default function LeaderboardScreen() {
             <Pressable
               key={m.key}
               onPress={() => setMode(m.key as Mode)}
-              style={[styles.segment, mode === m.key && styles.segmentActive]}
+              style={[styles.segment, mode === (m.key as Mode) && styles.segmentActive]}
             >
               <Ionicons
                 name={m.icon as any}
                 size={13}
-                color={mode === m.key ? '#ff6a00' : '#9aa0a6'}
+                color={mode === m.key ? colors.primary : '#9aa0a6'}
                 style={{ marginRight: 6 }}
               />
               <Text style={[styles.segmentText, mode === m.key && styles.segmentTextActive]}>{m.label}</Text>
@@ -448,7 +415,6 @@ export default function LeaderboardScreen() {
           ))}
         </View>
 
-        {/* Gender */}
         <View style={[styles.filtersRow, { marginTop: 8 }]}>
           {(['all', 'male', 'female'] as const).map((g) => (
             <Pressable key={g} onPress={() => setGender(g)} style={[styles.pill, gender === g && styles.pillActive]}>
@@ -459,12 +425,11 @@ export default function LeaderboardScreen() {
           ))}
         </View>
 
-        {/* Region */}
         {mode === 'region' ? (
           <View style={{ gap: 8, marginTop: 12 }}>
             <Text style={styles.filterLabel}>Region</Text>
             {loadingRegions && !regions.length ? (
-              <ActivityIndicator color="#ff6a00" />
+              <ActivityIndicator color={colors.primary} />
             ) : (
               <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 8, paddingBottom: 2 }}>
                 <Pressable key="all-regions" onPress={() => setRegionId('all')} style={[styles.pill, regionId === 'all' && styles.pillActive]}>
@@ -480,12 +445,11 @@ export default function LeaderboardScreen() {
           </View>
         ) : null}
 
-        {/* Club */}
         {mode === 'club' ? (
           <View style={{ gap: 8, marginTop: 12 }}>
             <Text style={styles.filterLabel}>Club</Text>
             {loadingClubs && !clubs.length ? (
-              <ActivityIndicator color="#ff6a00" />
+              <ActivityIndicator color={colors.primary} />
             ) : (
               <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 8, paddingBottom: 2 }}>
                 <Pressable key="all-clubs" onPress={() => setClubId('all')} style={[styles.pill, clubId === 'all' && styles.pillActive]}>
@@ -501,13 +465,10 @@ export default function LeaderboardScreen() {
           </View>
         ) : null}
 
-        {/* Top 3 */}
         {podium.length ? (
           <View style={{ marginTop: 16 }}>
             <Text style={{ color: '#fff', fontWeight: '900', marginBottom: 10 }}>Top 3</Text>
-
             <View style={{ flexDirection: 'row', alignItems: 'flex-end', justifyContent: 'space-between' }}>
-              {/* #2 */}
               <View style={{ width: sideW, height: sideH, opacity: podium[1] ? 1 : 0 }}>
                 {podium[1] && (
                   <PodiumCard
@@ -523,8 +484,7 @@ export default function LeaderboardScreen() {
                 )}
               </View>
 
-              {/* #1 */}
-              <View style={{ width: midW, height: midH, marginHorizontal: 0 }}>
+              <View style={{ width: midW, height: midH }}>
                 {podium[0] && (
                   <PodiumCard
                     rank={1}
@@ -539,7 +499,6 @@ export default function LeaderboardScreen() {
                 )}
               </View>
 
-              {/* #3 */}
               <View style={{ width: sideW, height: sideH, opacity: podium[2] ? 1 : 0 }}>
                 {podium[2] && (
                   <PodiumCard
@@ -559,10 +518,10 @@ export default function LeaderboardScreen() {
         ) : null}
       </View>
     );
-  }, [search, mode, gender, regions, loadingRegions, regionId, clubs, loadingClubs, clubId, podium]);
+  }, [search, searchQ, mode, gender, regions, loadingRegions, regionId, clubs, loadingClubs, clubId, podium]);
 
   return (
-    <View style={{ flex: 1, backgroundColor: '#0b0e13' }}>
+    <View style={{ flex: 1, backgroundColor: colors.bg }}>
       <FlatList
         style={{ flex: 1 }}
         contentContainerStyle={{ padding: 16, paddingBottom: 40 }}
@@ -593,7 +552,7 @@ export default function LeaderboardScreen() {
         ListEmptyComponent={
           isLoading ? (
             <View style={{ paddingVertical: 24 }}>
-              <ActivityIndicator color="#ff6a00" />
+              <ActivityIndicator color={colors.primary} />
             </View>
           ) : error ? (
             <Text style={{ color: '#ff9aa2' }}>Failed to load leaderboard.</Text>
@@ -604,7 +563,7 @@ export default function LeaderboardScreen() {
         ListFooterComponent={
           isFetchingNextPage ? (
             <View style={{ paddingVertical: 16 }}>
-              <ActivityIndicator color="#ff6a00" />
+              <ActivityIndicator color={colors.primary} />
             </View>
           ) : null
         }
@@ -619,7 +578,6 @@ export default function LeaderboardScreen() {
         }
       />
 
-      {/* HERO DETAILS MODAL (Front: identity; Back: insights) */}
       <Modal visible={!!openId} animationType="fade" onRequestClose={closeModal} transparent>
         <View style={styles.modalWrap}>
           {openPlayer ? (
@@ -635,17 +593,11 @@ export default function LeaderboardScreen() {
                   imageStyle={{ borderRadius: 24, transform: [{ scale: 1.38 }, { translateY: 12 }] }}
                   resizeMode="cover"
                 >
-                  <LinearGradient
-                    colors={['rgba(0,0,0,0.2)', 'rgba(0,0,0,0.85)']}
-                    style={StyleSheet.absoluteFill}
-                  />
-
-                  {/* rank chip */}
+                  <LinearGradient colors={['rgba(0,0,0,0.2)', 'rgba(0,0,0,0.85)']} style={StyleSheet.absoluteFill} />
                   <View style={styles.modalRankPill}>
                     <Text style={styles.rankPillText}>#{openRank}</Text>
                   </View>
 
-                  {/* centered larger avatar */}
                   <View style={[styles.centerWrap, { top: '35%' }]}>
                     {openPlayer.avatar_url ? (
                       <Image source={{ uri: openPlayer.avatar_url }} style={[styles.centerAvatar, { width: 96, height: 96 }]} />
@@ -656,29 +608,23 @@ export default function LeaderboardScreen() {
                     )}
                   </View>
 
-                  {/* identity + quick facts */}
                   <View style={styles.modalInfo}>
                     <Text numberOfLines={1} style={[styles.heroName, { fontSize: 24 }]}>
                       {openPlayer.username || 'Player'}
                     </Text>
-
                     <Text style={styles.subtleRow}>
                       {(openPlayer.region_name || '—')}{' '}
-                      {openPlayer.club_id ? `• ${clubsMap.get(openPlayer.club_id)?.name ?? 'Club'}` : ''}
+                      {openPlayer.club_id ? `• ${(clubsMap.get(openPlayer.club_id)?.name ?? 'Club')}` : ''}
                     </Text>
 
                     <View style={styles.badgesRow}>
                       <View style={styles.badgePill}>
                         <Ionicons name="trophy" size={12} color="#ffd79f" style={{ marginRight: 6 }} />
-                        <Text style={{ color: '#ffd79f', fontWeight: '800' }}>
-                          {Math.round(openPlayer.rating ?? 0)} ELO
-                        </Text>
+                        <Text style={{ color: '#ffd79f', fontWeight: '800' }}>{Math.round(openPlayer.rating ?? 0)} ELO</Text>
                       </View>
                       <View style={[styles.badgePill, { backgroundColor: 'rgba(255,255,255,0.06)' }]}>
                         <Ionicons name="ribbon" size={12} color="#ffb777" style={{ marginRight: 6 }} />
-                        <Text style={{ color: '#e6c8a4', fontWeight: '700' }}>
-                          Badges: {selStats ? Math.max(0, (selStats as any).badges ?? 0) : '—'}
-                        </Text>
+                        <Text style={{ color: '#e6c8a4', fontWeight: '700' }}>Badges: {(selStats as any)?.badges ?? 0}</Text>
                       </View>
                     </View>
 
@@ -718,9 +664,8 @@ export default function LeaderboardScreen() {
   );
 }
 
-/* ---------- styles ---------- */
 const styles = StyleSheet.create({
-  headerWrap: { backgroundColor: '#0b0e13', paddingBottom: 12 },
+  headerWrap: { backgroundColor: colors.bg, paddingBottom: 12 },
   h1: { color: '#fff', fontSize: 30, fontWeight: '900', marginBottom: 8 },
 
   searchWrap: {
@@ -743,9 +688,9 @@ const styles = StyleSheet.create({
     paddingVertical: 6,
     backgroundColor: '#0e1116',
   },
-  pillActive: { borderColor: '#ff6a00', backgroundColor: '#141821' },
+  pillActive: { borderColor: colors.primary, backgroundColor: '#141821' },
   pillText: { color: '#9aa0a6', fontWeight: '700' },
-  pillTextActive: { color: '#ff6a00' },
+  pillTextActive: { color: colors.primary },
 
   segment: {
     flexDirection: 'row',
@@ -757,9 +702,9 @@ const styles = StyleSheet.create({
     paddingVertical: 6,
     backgroundColor: '#0e1116',
   },
-  segmentActive: { borderColor: '#ff6a00', backgroundColor: '#141821' },
+  segmentActive: { borderColor: colors.primary, backgroundColor: '#141821' },
   segmentText: { color: '#9aa0a6', fontWeight: '700', fontSize: 12 },
-  segmentTextActive: { color: '#ff6a00' },
+  segmentTextActive: { color: colors.primary },
 
   rankPill: {
     position: 'absolute',
@@ -787,14 +732,7 @@ const styles = StyleSheet.create({
   },
   rankPillText: { color: '#ffd79f', fontWeight: '900' },
 
-  centerWrap: {
-    position: 'absolute',
-    top: '36%',
-    left: 0,
-    right: 0,
-    alignItems: 'center',
-    zIndex: 1,
-  },
+  centerWrap: { position: 'absolute', top: '36%', left: 0, right: 0, alignItems: 'center', zIndex: 1 },
   centerAvatar: {
     width: 72,
     height: 72,
@@ -814,7 +752,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'space-between',
   },
-  nameRegion: { flex: 1, paddingRight: 10 },
   heroName: { color: '#fff', fontWeight: '900', fontSize: 18 },
 
   eloPill: {
@@ -837,13 +774,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     padding: 16,
   },
-  modalInfo: {
-    position: 'absolute',
-    left: 16,
-    right: 16,
-    bottom: 16,
-    alignItems: 'center',
-  },
+  modalInfo: { position: 'absolute', left: 16, right: 16, bottom: 16, alignItems: 'center' },
   subtleRow: { color: '#d8d8e2', opacity: 0.85, marginTop: 6 },
   badgesRow: { flexDirection: 'row', gap: 8, marginTop: 10 },
   badgePill: {

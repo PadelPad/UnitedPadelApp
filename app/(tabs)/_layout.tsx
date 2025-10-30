@@ -1,48 +1,36 @@
 // app/(tabs)/_layout.tsx
 import React from 'react';
 import { Tabs } from 'expo-router';
-import Ionicons from '@expo/vector-icons/Ionicons';
-import GlobalFab from '@/components/GlobalFab';
+import CustomTabBar from '@/components/ui/CustomTabBar';
+import QuickActionDock from '@/components/ui/QuickActionDock';
 
 export default function TabsLayout() {
   return (
     <>
       <Tabs
-        initialRouteName="home/index"
-        screenOptions={{
-          headerShown: false,
-          tabBarActiveTintColor: '#ff6a00',
-          tabBarStyle: { backgroundColor: '#0b0e13', borderTopColor: '#1f2630' },
-        }}
+        screenOptions={{ headerShown: false }}
+        tabBar={(props) => <CustomTabBar {...props} />}
       >
-        <Tabs.Screen
-          name="home/index"
-          options={{ title: 'Home', tabBarIcon: ({ color, size }) => <Ionicons name="home" color={color} size={size} /> }}
-        />
-        <Tabs.Screen
-          name="leaderboard/index"
-          options={{ title: 'Leaderboard', tabBarIcon: ({ color, size }) => <Ionicons name="bar-chart" color={color} size={size} /> }}
-        />
-        <Tabs.Screen
-          name="matches/index"
-          options={{ title: 'Matches', tabBarIcon: ({ color, size }) => <Ionicons name="tennisball" color={color} size={size} /> }}
-        />
-        <Tabs.Screen
-          name="tournaments/index"
-          options={{ title: 'Tournaments', tabBarIcon: ({ color, size }) => <Ionicons name="calendar" color={color} size={size} /> }}
-        />
-        <Tabs.Screen
-          name="clubs/index"
-          options={{ title: 'Clubs', tabBarIcon: ({ color, size }) => <Ionicons name="business" color={color} size={size} /> }}
-        />
-        <Tabs.Screen
-          name="profile/index"
-          options={{ title: 'Profile', tabBarIcon: ({ color, size }) => <Ionicons name="person" color={color} size={size} /> }}
-        />
+        <Tabs.Screen name="home/index" options={{ title: 'Home', tabBarLabel: 'Home' }} />
+        <Tabs.Screen name="matches/index" options={{ title: 'Matches', tabBarLabel: 'Matches' }} />
+        <Tabs.Screen name="leaderboard/index" options={{ title: 'Leaderboard', tabBarLabel: 'Leaderboard' }} />
+        <Tabs.Screen name="clubs/index" options={{ title: 'Clubs', tabBarLabel: 'Clubs' }} />
+        <Tabs.Screen name="profile/index" options={{ title: 'Profile', tabBarLabel: 'Profile' }} />
+
+        {/* Hidden routes, still navigable */}
+        <Tabs.Screen name="tournaments/index" options={{ href: null }} />
+        <Tabs.Screen name="search/index" options={{ href: null }} />
+        <Tabs.Screen name="notifications/index" options={{ href: null }} />
       </Tabs>
 
-      {/* Don’t pass a height override; GlobalFab safely reads it if available */}
-      <GlobalFab />
+      <QuickActionDock
+        actions={[
+          { key: 'submit', label: 'Submit match', icon: 'add-circle', href: '/submit' },
+          { key: 'scan', label: 'Scan QR', icon: 'qr-code', href: '/submit/scan' },
+          { key: 'leaders', label: 'Leaderboard', icon: 'stats-chart', href: '/(tabs)/leaderboard' },
+          { key: 'tournaments', label: 'Tournaments', icon: 'trophy', href: '/(tabs)/tournaments' },
+        ]}
+      />
     </>
   );
 }
